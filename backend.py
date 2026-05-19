@@ -35,45 +35,75 @@ def open_camera(index):
     c = open_camera_test(index)
     if c is None:
         c = cv2.VideoCapture(index)
+        if c is not None and c.isOpened():
+            c.set(cv2.CAP_PROP_FRAME_WIDTH, 1080)
+            c.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+            c.set(cv2.CAP_PROP_FPS, 30)
     if c is not None and c.isOpened():
         c.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        w = c.get(cv2.CAP_PROP_FRAME_WIDTH)
+        h = c.get(cv2.CAP_PROP_FRAME_HEIGHT)
+        fps = c.get(cv2.CAP_PROP_FPS)
+        print(f"Camera {index} successfully opened at: {int(w)}x{int(h)} @ {int(fps)} FPS")
     return c
 
 def open_camera_test(index):
     import time
     # Try different backends on Windows
     if os.name == 'nt':
+        # Try DSHOW first (much better for custom resolutions/FPS on Windows)
+        c = cv2.VideoCapture(index, cv2.CAP_DSHOW)
+        if c.isOpened():
+            c.set(cv2.CAP_PROP_FRAME_WIDTH, 1080)
+            c.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+            c.set(cv2.CAP_PROP_FPS, 30)
+            for _ in range(5):
+                try:
+                    ret, _ = c.read()
+                    if ret:
+                        return c
+                except Exception:
+                    pass
+                time.sleep(0.1)
+            c.release()
+
         # Try MSMF
         c = cv2.VideoCapture(index, cv2.CAP_MSMF)
         if c.isOpened():
-            # Try reading multiple times (warm-up loop)
+            c.set(cv2.CAP_PROP_FRAME_WIDTH, 1080)
+            c.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+            c.set(cv2.CAP_PROP_FPS, 30)
             for _ in range(5):
-                ret, _ = c.read()
-                if ret:
-                    return c
+                try:
+                    ret, _ = c.read()
+                    if ret:
+                        return c
+                except Exception:
+                    pass
                 time.sleep(0.1)
             c.release()
-        # Try DSHOW
-        c = cv2.VideoCapture(index, cv2.CAP_DSHOW)
-        if c.isOpened():
-            for _ in range(5):
-                ret, _ = c.read()
-                if ret:
-                    return c
-                time.sleep(0.1)
-            c.release()
+
         # Try Auto
         c = cv2.VideoCapture(index)
         if c.isOpened():
+            c.set(cv2.CAP_PROP_FRAME_WIDTH, 1080)
+            c.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+            c.set(cv2.CAP_PROP_FPS, 30)
             for _ in range(5):
-                ret, _ = c.read()
-                if ret:
-                    return c
+                try:
+                    ret, _ = c.read()
+                    if ret:
+                        return c
+                except Exception:
+                    pass
                 time.sleep(0.1)
             c.release()
     else:
         c = cv2.VideoCapture(index)
         if c.isOpened():
+            c.set(cv2.CAP_PROP_FRAME_WIDTH, 1080)
+            c.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+            c.set(cv2.CAP_PROP_FPS, 30)
             return c
     return None
 
@@ -184,7 +214,12 @@ def generate_frames():
         frame = None
         with cap_lock:
             if cap is not None and cap.isOpened():
-                ret, frame = cap.read()
+                try:
+                    ret, frame = cap.read()
+                except Exception as e:
+                    print(f"Error reading frame from camera: {e}")
+                    ret, frame = False, None
+                
                 if ret and frame is not None:
                     frame = cv2.flip(frame, 1)
                 else:
