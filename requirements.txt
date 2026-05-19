@@ -1,6 +1,6 @@
 opencv-python
 insightface
-onnxruntime
+onnxruntime-gpu
 numpy
 customtkinter
 flask

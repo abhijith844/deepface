@@ -1,11 +1,23 @@
 import cv2
 import urllib.request
 import os
+import sys
+
+if os.name == 'nt':
+    # Add CUDA 12 DLLs from pip packages to the Windows DLL search path
+    for p in sys.path:
+        for lib in ['cublas', 'cudnn', 'cuda_nvrtc', 'cuda_runtime', 'cufft', 'curand', 'cusolver', 'cusparse', 'nvjitlink']:
+            dll_dir = os.path.join(p, 'nvidia', lib, 'bin')
+            if os.path.exists(dll_dir):
+                os.add_dll_directory(dll_dir)
+                os.environ['PATH'] = dll_dir + os.path.pathsep + os.environ['PATH']
+
 import insightface
 from insightface.app import FaceAnalysis
 from flask import Flask, Response, request, jsonify
 import numpy as np
 import threading
+import time
 
 app = Flask(__name__)
 
@@ -18,6 +30,14 @@ source_face = None
 cap = None
 cap_lock = threading.Lock()
 current_camera_index = 0
+
+def open_camera(index):
+    c = open_camera_test(index)
+    if c is None:
+        c = cv2.VideoCapture(index)
+    if c is not None and c.isOpened():
+        c.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+    return c
 
 def open_camera_test(index):
     import time
@@ -57,12 +77,6 @@ def open_camera_test(index):
             return c
     return None
 
-def open_camera(index):
-    c = open_camera_test(index)
-    if c is not None:
-        return c
-    # Absolute fallback
-    return cv2.VideoCapture(index)
 
 def init_models():
     global face_analyzer, swapper, cap
@@ -70,9 +84,10 @@ def init_models():
     if not os.path.exists(MODEL_PATH):
         urllib.request.urlretrieve(MODEL_URL, MODEL_PATH)
     
-    face_analyzer = FaceAnalysis(name='buffalo_l')
+    providers = ['CUDAExecutionProvider', 'CPUExecutionProvider']
+    face_analyzer = FaceAnalysis(name='buffalo_l', providers=providers)
     face_analyzer.prepare(ctx_id=0, det_size=(640, 640))
-    swapper = insightface.model_zoo.get_model(MODEL_PATH)
+    swapper = insightface.model_zoo.get_model(MODEL_PATH, providers=providers)
     
     with cap_lock:
         cap = open_camera(0)
@@ -170,7 +185,9 @@ def generate_frames():
         with cap_lock:
             if cap is not None and cap.isOpened():
                 ret, frame = cap.read()
-                if not ret:
+                if ret and frame is not None:
+                    frame = cv2.flip(frame, 1)
+                else:
                     frame = None
                 
         if frame is None:

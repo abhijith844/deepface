@@ -28,6 +28,9 @@ if %errorlevel% neq 0 (
 echo Installing Python dependencies...
 call .venv\Scripts\activate
 pip install --upgrade pip
+:: Force uninstall CPU onnxruntime to avoid library conflicts with GPU version
+echo Upgrading ONNX Runtime to GPU-accelerated version...
+pip uninstall onnxruntime -y >nul 2>nul
 pip install -r requirements.txt
 if %errorlevel% neq 0 (
     echo Error: Failed to install Python dependencies.
