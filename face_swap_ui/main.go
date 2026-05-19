@@ -67,27 +67,42 @@ func startPythonBackend() {
 		return
 	}
 
-	// Python paths
-	pyPath := filepath.Join(cwd, "..", ".venv", "bin", "python")
-	scriptPath := filepath.Join(cwd, "..", "backend.py")
+	var pyPath string
+	var scriptPath string
 
-	// Fallback if running inside root directory
-	if _, err := os.Stat(pyPath); os.IsNotExist(err) {
-		pyPath = filepath.Join(cwd, ".venv", "bin", "python")
+	// Determine virtual environment python executable path based on OS
+	var venvPyName string
+	if runtime.GOOS == "windows" {
+		venvPyName = filepath.Join("Scripts", "python.exe")
+	} else {
+		venvPyName = filepath.Join("bin", "python")
+	}
+
+	// Find backend.py first
+	scriptPath = filepath.Join(cwd, "..", "backend.py")
+	if _, err := os.Stat(scriptPath); os.IsNotExist(err) {
 		scriptPath = filepath.Join(cwd, "backend.py")
 	}
 
+	// Find venv python relative to backend.py directory
+	backendDir := filepath.Dir(scriptPath)
+	pyPath = filepath.Join(backendDir, ".venv", venvPyName)
+
+	// If virtual environment Python is not found, find system python
 	if _, err := os.Stat(pyPath); os.IsNotExist(err) {
-		fmt.Println("Virtualenv Python not found, looking for system python3...")
-		pyPath = "python3"
+		if runtime.GOOS == "windows" {
+			fmt.Println("Virtualenv Python not found, looking for system python...")
+			pyPath = "python"
+		} else {
+			fmt.Println("Virtualenv Python not found, looking for system python3...")
+			pyPath = "python3"
+		}
 	}
 
 	fmt.Printf("Starting Python backend: %s %s\n", pyPath, scriptPath)
 	cmd := exec.Command(pyPath, scriptPath)
 
-	if runtime.GOOS != "windows" {
-		cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	}
+	prepareCmd(cmd)
 
 	cmd.Dir = filepath.Dir(scriptPath)
 	cmd.Stdout = os.Stdout
@@ -106,10 +121,6 @@ func startPythonBackend() {
 func shutdown() {
 	if pyCmd != nil && pyCmd.Process != nil {
 		fmt.Println("Shutting down Python backend...")
-		if runtime.GOOS != "windows" {
-			_ = syscall.Kill(-pyCmd.Process.Pid, syscall.SIGKILL)
-		} else {
-			_ = pyCmd.Process.Kill()
-		}
+		killProcess(pyCmd)
 	}
 }

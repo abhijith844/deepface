@@ -3,3 +3,4 @@ insightface
 onnxruntime
 numpy
 customtkinter
+flask

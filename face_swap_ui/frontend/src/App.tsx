@@ -9,6 +9,10 @@ export default function App() {
   const [logs, setLogs] = useState<string[]>(['System started. Checking connection...']);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Camera selection states
+  const [availableCameras, setAvailableCameras] = useState<number[]>([0]);
+  const [currentCamera, setCurrentCamera] = useState<number>(0);
+
   const addLog = (msg: string) => {
     const time = new Date().toLocaleTimeString();
     setLogs(prev => [`[${time}] ${msg}`, ...prev.slice(0, 49)]);
@@ -28,6 +32,9 @@ export default function App() {
           setBackendStatus(data.status);
           setFaceLoaded(data.face_loaded);
           setSwappingEnabled(data.swapping_enabled);
+          if (data.current_camera !== undefined) {
+            setCurrentCamera(data.current_camera);
+          }
         } else {
           setBackendStatus('offline');
         }
@@ -43,6 +50,47 @@ export default function App() {
     intervalId = setInterval(checkStatus, 1500);
     return () => clearInterval(intervalId);
   }, []);
+
+  // Fetch available cameras when backend turns ready
+  useEffect(() => {
+    if (backendStatus !== 'ready') return;
+
+    const fetchCameras = async () => {
+      try {
+        const resp = await fetch('http://127.0.0.1:5000/cameras');
+        if (resp.ok) {
+          const data = await resp.json();
+          setAvailableCameras(data.cameras);
+          setCurrentCamera(data.current);
+          addLog(`AI Engine: Detected available input cameras: [${data.cameras.join(', ')}]`);
+        }
+      } catch (err) {
+        addLog("System Error: Failed to fetch available cameras from backend.");
+      }
+    };
+
+    fetchCameras();
+  }, [backendStatus]);
+
+  const handleCameraChange = async (index: number) => {
+    addLog(`Switching video input source to Camera ${index}...`);
+    try {
+      const resp = await fetch('http://127.0.0.1:5000/set_camera', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ index }),
+      });
+      if (resp.ok) {
+        const data = await resp.json();
+        setCurrentCamera(data.camera_index);
+        addLog(`AI Engine: Switched active camera to Index ${data.camera_index}.`);
+      } else {
+        addLog("AI Engine Error: Failed to change camera source.");
+      }
+    } catch (err) {
+      addLog("System Error: Connection to backend lost while switching cameras.");
+    }
+  };
 
   const handleUploadFace = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -165,11 +213,30 @@ export default function App() {
               />
             </div>
 
-            {/* Step 2: Toggle Switch for live swap */}
+            {/* Step 2: Camera selection dropdown */}
+            <div className="control-group">
+              <label className="group-label">2. Input Camera Source</label>
+              <div className="select-container">
+                <select 
+                  value={currentCamera} 
+                  onChange={(e) => handleCameraChange(Number(e.target.value))}
+                  disabled={backendStatus !== 'ready'}
+                  className="cyber-select"
+                >
+                  {availableCameras.map(camId => (
+                    <option key={camId} value={camId}>
+                      Camera {camId} {camId === 0 ? ' (Default)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* Step 3: Toggle Switch for live swap */}
             <div className="control-group">
               <div className="toggle-wrapper">
                 <div className="toggle-info">
-                  <span className="toggle-title">Real-Time Swapping</span>
+                  <span className="toggle-title">3. Real-Time Swapping</span>
                   <span className="toggle-desc">Toggle neural face replacement</span>
                 </div>
                 <button 

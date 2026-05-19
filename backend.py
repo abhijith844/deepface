@@ -5,6 +5,7 @@ import insightface
 from insightface.app import FaceAnalysis
 from flask import Flask, Response, request, jsonify
 import numpy as np
+import threading
 
 app = Flask(__name__)
 
@@ -15,6 +16,53 @@ face_analyzer = None
 swapper = None
 source_face = None
 cap = None
+cap_lock = threading.Lock()
+current_camera_index = 0
+
+def open_camera_test(index):
+    import time
+    # Try different backends on Windows
+    if os.name == 'nt':
+        # Try MSMF
+        c = cv2.VideoCapture(index, cv2.CAP_MSMF)
+        if c.isOpened():
+            # Try reading multiple times (warm-up loop)
+            for _ in range(5):
+                ret, _ = c.read()
+                if ret:
+                    return c
+                time.sleep(0.1)
+            c.release()
+        # Try DSHOW
+        c = cv2.VideoCapture(index, cv2.CAP_DSHOW)
+        if c.isOpened():
+            for _ in range(5):
+                ret, _ = c.read()
+                if ret:
+                    return c
+                time.sleep(0.1)
+            c.release()
+        # Try Auto
+        c = cv2.VideoCapture(index)
+        if c.isOpened():
+            for _ in range(5):
+                ret, _ = c.read()
+                if ret:
+                    return c
+                time.sleep(0.1)
+            c.release()
+    else:
+        c = cv2.VideoCapture(index)
+        if c.isOpened():
+            return c
+    return None
+
+def open_camera(index):
+    c = open_camera_test(index)
+    if c is not None:
+        return c
+    # Absolute fallback
+    return cv2.VideoCapture(index)
 
 def init_models():
     global face_analyzer, swapper, cap
@@ -25,7 +73,9 @@ def init_models():
     face_analyzer = FaceAnalysis(name='buffalo_l')
     face_analyzer.prepare(ctx_id=0, det_size=(640, 640))
     swapper = insightface.model_zoo.get_model(MODEL_PATH)
-    cap = cv2.VideoCapture(0)
+    
+    with cap_lock:
+        cap = open_camera(0)
     print("Backend Ready! Listening on http://127.0.0.1:5000")
 
 enable_swapping = True
@@ -42,7 +92,48 @@ def get_status():
     return jsonify({
         "status": "ready" if face_analyzer is not None else "initializing",
         "face_loaded": source_face is not None,
-        "swapping_enabled": enable_swapping
+        "swapping_enabled": enable_swapping,
+        "current_camera": current_camera_index
+    })
+
+@app.route('/cameras', methods=['GET'])
+def get_cameras():
+    available = []
+    # Scan camera indices 0-4
+    for i in range(5):
+        if i == current_camera_index:
+            available.append(i)
+            continue
+            
+        temp_cap = open_camera_test(i)
+        if temp_cap is not None:
+            available.append(i)
+            temp_cap.release()
+            
+    if not available:
+        available = [0]
+        
+    return jsonify({
+        "cameras": available,
+        "current": current_camera_index
+    })
+
+@app.route('/set_camera', methods=['POST'])
+def set_camera():
+    global cap, current_camera_index
+    data = request.json or {}
+    new_index = int(data.get('index', 0))
+    
+    with cap_lock:
+        if cap is not None:
+            cap.release()
+        
+        cap = open_camera(new_index)
+        current_camera_index = new_index
+        
+    return jsonify({
+        "success": True,
+        "camera_index": new_index
     })
 
 @app.route('/toggle_swap', methods=['POST'])
@@ -76,10 +167,11 @@ def generate_frames():
     import time
     while True:
         frame = None
-        if cap is not None and cap.isOpened():
-            ret, frame = cap.read()
-            if not ret:
-                frame = None
+        with cap_lock:
+            if cap is not None and cap.isOpened():
+                ret, frame = cap.read()
+                if not ret:
+                    frame = None
                 
         if frame is None:
             # Fallback to generating a dummy demo frame

@@ -682,3 +682,69 @@ body {
   50% { top: 100%; }
   100% { top: 0%; }
 }
+
+/* Custom Camera Select Styling */
+.select-container {
+  position: relative;
+  width: 100%;
+}
+
+.cyber-select {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-main);
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  outline: none;
+}
+
+.cyber-select:hover:not(:disabled) {
+  border-color: var(--border-focus);
+  background: rgba(0, 242, 254, 0.02);
+  box-shadow: 0 0 10px rgba(0, 242, 254, 0.05);
+}
+
+.cyber-select:focus:not(:disabled) {
+  border-color: var(--accent-cyan);
+  background: rgba(0, 242, 254, 0.03);
+  box-shadow: 0 0 12px rgba(0, 242, 254, 0.15);
+}
+
+.cyber-select:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.select-container::after {
+  content: "";
+  position: absolute;
+  right: 1.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 0;
+  height: 0;
+  border-left: 5px solid transparent;
+  border-right: 5px solid transparent;
+  border-top: 5px solid var(--text-muted);
+  pointer-events: none;
+  transition: border-top-color 0.3s ease;
+}
+
+.select-container:hover::after {
+  border-top-color: var(--accent-cyan);
+}
+
+.cyber-select option {
+  background-color: #0c0e14;
+  color: var(--text-main);
+  padding: 0.5rem;
+}
