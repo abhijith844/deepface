@@ -1,0 +1,33 @@
+# Virtual environment
+.venv/
+venv/
+ENV/
+
+# Large model files
+*.onnx
+
+# Go compiled binaries
+face_swap_ui/face_swap_ui
+face_swap_ui/face_swap_ui.exe
+*.exe
+*.test
+*.prof
+
+# React node_modules and builds
+node_modules/
+face_swap_ui/frontend/node_modules/
+face_swap_ui/frontend/dist/
+
+# Python cache & IDE files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ipynb_checkpoints/
+.vscode/
+.idea/
+
+# OS specific files
+.DS_Store
+Thumbs.db
